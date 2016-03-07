@@ -7,7 +7,7 @@ case class Kanji(char: Char, parts: Seq[Part], original: Option[Char]) {
 
 
   def isEquivalent(radical: Kanji): Boolean =
-    this == radical || original.contains(radical.char) || radical.original.contains(char)
+    this.char == radical.char || original.contains(radical.char) || radical.original.contains(char)
 
   def flatten: Seq[Kanji] =
     if(parts.isEmpty) Seq(this)

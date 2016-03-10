@@ -17,14 +17,17 @@ import scalafx.beans.Observable
 import scalafx.beans.property.ObjectProperty
 import scalafx.beans.value.ObservableValue
 import scalafx.event.ActionEvent
+import scalafx.geometry.Insets
 import scalafx.scene.Scene
 import scalafx.scene.control.{ListCell, ListView, TextField}
-import scalafx.scene.input.KeyEvent
-import scalafx.scene.layout.VBox
+import scalafx.scene.input.{KeyCode, KeyEvent}
+import scalafx.scene.layout.{HBox, VBox}
 import scalafx.Includes._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scalafx.scene.text.Font
+import scalafx.scene.web.WebView
+import scalafx.stage.Popup
 
 /**
  * Created by Kamil on 06.03.2016.
@@ -48,7 +51,7 @@ object Buchan extends JFXApp {
   var allKanji: Seq[Kanji] = Seq()
   val allKanjiFuture = Future { for {
     file <- new File("./kanji/").listFiles((f: File) => (f.getName endsWith ".svg") && !(f.getName contains "-"))
-    xml = try{
+    xml = try {
       xmlParser.load(file.toURI.toURL)
     } catch {
       case NonFatal(ex) => throw new RuntimeException(s"exception caught while parsing file $file", ex)
@@ -56,44 +59,80 @@ object Buchan extends JFXApp {
   } yield Kanji.loadKanjiFile(xml) }
   for(x <- allKanjiFuture) {
     allKanji = x
-    radicalInput.disable = false
     Platform.runLater{
+      radicalInput.disable = false
       radicalInput.requestFocus()
     }
   }
 
-  val radicalInput = new TextField {
-//    onAction = { e: ActionEvent =>
-//      onDoSearch()
-//    }
-//    onKeyTyped = { e: KeyEvent =>
-//      onDoSearch()
-//    }
+  val globalFont = Font("Meiryo", 20)
+
+  val radicalInput: TextField = new TextField {
+    onAction = { e: ActionEvent =>
+      if(text.value.length() > 0) {
+        resultList.items.get().headOption.foreach(c => wordInput.text.value = wordInput.text.value + c)
+        text = ""
+      } else {
+        println(s"searching for ${wordInput.text.value}")
+        jishoWebView.getEngine.load(s"http://jisho.org/search/${wordInput.text.value}")
+      }
+    }
+    onKeyPressed = { e: KeyEvent =>
+      e.code match {
+        case KeyCode.DOWN =>
+          resultList.selectionModel.value.select(1)
+          resultList.requestFocus()
+        case KeyCode.UP =>
+          resultList.selectionModel.value.select(0)
+          resultList.requestFocus()
+        case _ =>
+      }
+    }
     disable = true
-    font = Font(20.0)
+    font = globalFont
   }
 
-  val wordInput = new TextField
-  val resultList = new ListView[Char] {
+  val wordInput = new TextField {
+    font = globalFont
+  }
+  val resultList: ListView[Char] = new ListView[Char] {
     items <== radicalInput.text.map { radicals =>
       FXCollections.observableArrayList(onDoSearch(radicals).map(_.char).toArray: _*)
     }
     cellFactory = { _ =>
       new ListCell[Char] {
         text <== item.map(_.toString)
-        font = Font(20.0)
+        font = globalFont
+        onKeyPressed = { e: KeyEvent =>
+          if(e.code == KeyCode.ENTER) {
+            resultList.items.get().headOption.foreach{c =>
+              wordInput.text.value = wordInput.text.value + c
+              radicalInput.text = ""
+              radicalInput.requestFocus()
+            }
+          }
+        }
       }
     }
+  }
+  val jishoWebView = new WebView {
+    minWidth = 100
   }
 
   stage = new PrimaryStage {
     title = "Kanji Lookup"
     scene = new Scene {
-      content = new VBox(10) {
+      content = new HBox(10) {
         content = Seq(
-          radicalInput,
-          wordInput,
-          resultList
+          new VBox(10) {
+            padding = Insets(10)
+            content = Seq(
+              radicalInput,
+              wordInput,
+              resultList
+            )
+          },
+          jishoWebView
         )
       }
     }

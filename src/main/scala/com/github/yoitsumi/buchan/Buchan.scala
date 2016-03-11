@@ -21,7 +21,7 @@ import scalafx.geometry.Insets
 import scalafx.scene.Scene
 import scalafx.scene.control.{ListCell, ListView, TextField}
 import scalafx.scene.input.{KeyCode, KeyEvent}
-import scalafx.scene.layout.{HBox, VBox}
+import scalafx.scene.layout.{Priority, HBox, VBox}
 import scalafx.Includes._
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -94,6 +94,10 @@ object Buchan extends JFXApp {
 
   val wordInput = new TextField {
     font = globalFont
+    onAction = { _: ActionEvent =>
+      println(s"searching for ${text.value}")
+      jishoWebView.getEngine.load(s"http://jisho.org/search/${text.value}")
+    }
   }
   val resultList: ListView[Char] = new ListView[Char] {
     items <== radicalInput.text.map { radicals =>
@@ -116,7 +120,8 @@ object Buchan extends JFXApp {
     }
   }
   val jishoWebView = new WebView {
-    minWidth = 100
+//    minWidth = 100
+    vgrow = Priority.ALWAYS
   }
 
   stage = new PrimaryStage {

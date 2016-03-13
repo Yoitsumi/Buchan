@@ -2,11 +2,14 @@ package com.github.yoitsumi.buchan
 
 import java.awt.im.InputMethodRequests
 import java.io.{FileFilter, File}
+import java.net.{URLEncoder, URL}
 import javafx.collections.{FXCollections, ObservableList}
-import javafx.scene.input
+import javafx.scene
+import javafx.scene.{layout, input}
 import javax.xml.parsers.SAXParserFactory
 
 import com.github.yoitsumi.buchan.model._
+import org.jsoup.Jsoup
 
 import scala.concurrent.Future
 import scala.util.control.NonFatal
@@ -21,7 +24,7 @@ import scalafx.geometry.Insets
 import scalafx.scene.Scene
 import scalafx.scene.control.{ListCell, ListView, TextField}
 import scalafx.scene.input.{KeyCode, KeyEvent}
-import scalafx.scene.layout.{Priority, HBox, VBox}
+import scalafx.scene.layout._
 import scalafx.Includes._
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -73,8 +76,7 @@ object Buchan extends JFXApp {
         resultList.items.get().headOption.foreach(c => wordInput.text.value = wordInput.text.value + c)
         text = ""
       } else {
-        println(s"searching for ${wordInput.text.value}")
-        jishoWebView.getEngine.load(s"http://jisho.org/search/${wordInput.text.value}")
+        jishoSearch()
       }
     }
     onKeyPressed = { e: KeyEvent =>
@@ -95,8 +97,7 @@ object Buchan extends JFXApp {
   val wordInput = new TextField {
     font = globalFont
     onAction = { _: ActionEvent =>
-      println(s"searching for ${text.value}")
-      jishoWebView.getEngine.load(s"http://jisho.org/search/${text.value}")
+      jishoSearch()
     }
   }
   val resultList: ListView[Char] = new ListView[Char] {
@@ -118,29 +119,31 @@ object Buchan extends JFXApp {
         }
       }
     }
-  }
-  val jishoWebView = new WebView {
-//    minWidth = 100
     vgrow = Priority.ALWAYS
   }
+  val jishoWebView = new WebView
 
   stage = new PrimaryStage {
     title = "Kanji Lookup"
-    scene = new Scene {
-      content = new HBox(10) {
-        content = Seq(
-          new VBox(10) {
-            padding = Insets(10)
-            content = Seq(
-              radicalInput,
-              wordInput,
-              resultList
-            )
-          },
-          jishoWebView
-        )
-      }
-    }
+    scene = new Scene(new javafx.scene.Scene(new HBox(10) {
+      content = Seq(
+        new VBox(10) {
+          padding = Insets(10)
+          content = Seq(
+            radicalInput,
+            wordInput,
+            resultList
+          )
+          minWidth = 200
+        },
+        new StackPane() {
+          vgrow = Priority.ALWAYS
+          hgrow = Priority.ALWAYS
+          content = jishoWebView
+          padding = Insets(10)
+        }
+      )
+    }.delegate))
     show()
   }
 
@@ -166,10 +169,19 @@ object Buchan extends JFXApp {
     }
   }
 
+  def jishoSearch(): Unit = {
+    val term = URLEncoder.encode(wordInput.text.value, "utf-8")
+    val document = Jsoup.parse(new URL(s"http://jisho.org/search/$term"), 10000)
+    // Remove everything exept the result list
+    document.select("body>*:not(#page_container)").remove()
+    // Add base element so that styleheets are loaded properly
+    document.head.prepend("""<base href="http://jisho.org/">""")
+    jishoWebView.engine.loadContent(document.html())
+  }
+
   // TODO quick copy-paste, clean this up
 
   def onDoSearch(chars: String): Seq[Kanji] = {
-//    val chars = radicalInput.text.value
     val kanji = chars.flatMap(char => allKanji.find(_.char == char))
     val results = search(kanji)
     kanji.foreach{k =>
